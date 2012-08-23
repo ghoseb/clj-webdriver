@@ -3,7 +3,7 @@
             [clojure.java.io :as io]
             [clj-webdriver.cache :as cache])
   (:import clj_webdriver.driver.Driver
-           [org.openqa.selenium WebDriver WebElement]
+           [org.openqa.selenium WebDriver WebElement Platform]
            [java.io PushbackReader Writer]))
 
 (declare build-query)
@@ -45,7 +45,7 @@
                                     :textfield
                                     :password
                                     :filefield]) (throw (IllegalArgumentException. "Hierarchical queries do not support the use of \"meta\" tags such as :button*, :radio, :checkbox, :textfield, :password or :filefield. "))
-                                    
+
                                     :else (:css (build-query attr-val :css))))))
 
 (defn build-xpath-with-hierarchy
@@ -284,3 +284,47 @@
   [f]
   (with-open [r (io/reader f)]
     (read (PushbackReader. r))))
+
+(defn camelify
+  "Convert Clojure style keywords to Java camelCase strings."
+  [k]
+  (let [[head & tail] (str/split (name k) #"-")]
+    (apply str head (map str/capitalize tail))))
+
+(let [platform {:android (Platform/ANDROID)
+                :any (Platform/ANY)
+                :linux (Platform/LINUX)
+                :mac (Platform/MAC)
+                :unix (Platform/UNIX)
+                :vista (Platform/VISTA)
+                :windows (Platform/WINDOWS)
+                :xp (Platform/XP)}]
+  (defn ->platform
+    "Convert a Clojure keyword platform to its selenium counterpart."
+    [p]
+    {:pre [(contains? platform p)]}
+    (platform p)))
+
+(defn rename-key
+  "Rename a key in a map."
+  [m old-k new-k]
+  (dissoc (assoc m new-k (m old-k)) old-k))
+
+(defn clean-spec-map
+  "Clean up a spec map."
+  [spec-map]
+  (-> spec-map
+      (rename-key :browser :browser-name)
+      (dissoc :profile)))
+
+(defn spec->map
+  "Convert a Clojure browser-spec map into another map acceptable by Selenium."
+  [spec]
+  (reduce (fn [r [k v]] (assoc r
+                         (camelify k)
+                         (cond
+                           (= k :platform) (->platform v)
+                           (keyword? v) (name v)
+                           :else v)))
+          {}
+          (clean-spec-map spec)))

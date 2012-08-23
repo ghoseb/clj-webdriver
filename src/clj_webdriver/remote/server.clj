@@ -2,7 +2,7 @@
   (:use [clojure.java.io :only [as-url]]
         [clj-webdriver.driver :only [init-driver]]
         [clj-webdriver.core :only [get-url]]
-        [clj-webdriver.util :only [call-method]])
+        [clj-webdriver.util :only [spec->map]])
   (:import [org.mortbay.jetty Connector Server]
            org.mortbay.jetty.nio.SelectChannelConnector
            org.mortbay.jetty.security.SslSocketConnector
@@ -11,7 +11,8 @@
            org.openqa.selenium.remote.server.DriverServlet
            [org.openqa.selenium.remote
             DesiredCapabilities RemoteWebDriver
-            HttpCommandExecutor]))
+            HttpCommandExecutor]
+           org.openqa.selenium.Platform))
 
 (defprotocol IRemoteServer
   "Functions for managing a RemoteServer instance."
@@ -26,7 +27,7 @@
   IRemoteServer
   (stop [remote-server]
     (.stop (:webdriver-server remote-server)))
-  
+
   (start [remote-server]
     (try
       (let [port (get-in remote-server [:connection-params :port])
@@ -45,7 +46,7 @@
       (catch java.net.BindException _
         (stop remote-server)
         (start remote-server))))
-  
+
   (address [remote-server]
     (str "http://"
          (get-in remote-server [:connection-params :host])
@@ -54,7 +55,7 @@
          (apply str (drop-last (get-in remote-server [:connection-params :path-spec])))
          (when (get-in remote-server [:connection-params :existing])
            "hub")))
-  
+
   (new-remote-webdriver*
     [remote-server browser-spec]
     (let [wd-url (address remote-server)
@@ -62,7 +63,7 @@
                                         profile nil}} browser-spec]
       (if-not profile
         (RemoteWebDriver. (HttpCommandExecutor. (as-url wd-url))
-                          (call-method DesiredCapabilities browser nil nil))
+                          (DesiredCapabilities. (spec->map browser-spec)))
         (throw (IllegalArgumentException. "RemoteWebDriver instances do not support custom profiles.")))))
 
   (new-remote-driver
